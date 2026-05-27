@@ -1,0 +1,75 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User profile with their chosen clinical access role",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "Firebase Auth unique UID" },
+        "email": { "type": "string", "format": "email", "description": "Verified user email address" },
+        "displayName": { "type": "string", "description": "Full name of the logged-in member" },
+        "role": { "type": "string", "enum": ["medico", "paciente"], "description": "Assigned access level role" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Audit record creation timestamp" }
+      },
+      "required": ["userId", "email", "role"]
+    },
+    "Consultation": {
+      "title": "Consultation",
+      "description": "Information about a digital patient consultation with a general or specialist practitioner",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique visual primary ID for booking tracking" },
+        "patientName": { "type": "string", "description": "Full name of the patient requesting screening" },
+        "patientAge": { "type": "integer", "description": "Documented patient age" },
+        "selectedDoctorId": { "type": "string", "description": "Unique key of practitioner" },
+        "selectedDoctorName": { "type": "string", "description": "Selected medical doctor of choice" },
+        "specialty": { "type": "string", "description": "Expert specialty department required" },
+        "timeSlot": { "type": "string", "description": "Assigned schedule hour of consultation" },
+        "status": { "type": "string", "enum": ["pending", "confirmed", "completed", "cancelled", "active"], "description": "State identifier" },
+        "queueNumber": { "type": "integer", "description": "Dynamic triage queue index position" },
+        "symptoms": { "type": "string", "description": "Symptoms input text parsed from chat" },
+        "chatHistory": { "type": "array", "description": "Step list dialogue records" }
+      },
+      "required": ["id", "patientName", "selectedDoctorId", "status"]
+    },
+    "PatientHistory": {
+      "title": "PatientHistory",
+      "description": "Interactive clinical medical record of an admitted patient under safety triage",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique identifier of the electronic records file" },
+        "name": { "type": "string", "description": "Patient biological full name" },
+        "age": { "type": "integer", "description": "Patient age in years" },
+        "gender": { "type": "string", "description": "Identified physical gender" },
+        "cpf": { "type": "string", "description": "National registration CPF document ID" },
+        "admissionDate": { "type": "string", "description": "Timestamp string of ward admission" },
+        "admissionReason": { "type": "string", "description": "Anamnesis description motif" },
+        "currentVitals": { "type": "object", "description": "Map containing heartRate, respiratory parameters, spo2, etc." },
+        "triageCategory": { "type": "string", "description": "Manchester risk color designation category" },
+        "triageColor": { "type": "string", "description": "Visual layout color key" },
+        "status": { "type": "string", "description": "Current triage status group" },
+        "avatar": { "type": "string", "description": "Graphic representative thumbnail image path or URL" },
+        "medicalRecordNotes": { "type": "string", "description": "Interactive text annotations added on progress notes" },
+        "pastHistory": { "type": "array", "description": "Chronic pathologies, previous surgeries" },
+        "allergies": { "type": "array", "description": "Allergy declarations" },
+        "currentMedications": { "type": "array", "description": "Active drugs currently being administered" },
+        "pastVisits": { "type": "array", "description": "Database archive of completed clinical consultation visits" }
+      },
+      "required": ["id", "name", "currentVitals", "triageCategory", "status"]
+    }
+  },
+  "firestore": {
+    "users/{userId}": {
+      "schema": "UserProfile",
+      "description": "Individually-scoped secure profile documentation"
+    },
+    "consultations/{consultationId}": {
+      "schema": "Consultation",
+      "description": "Active booking consultations database collection"
+    },
+    "patient_history/{patientId}": {
+      "schema": "PatientHistory",
+      "description": "Dynamic clinical history and clinical records tracker for registered patients"
+    }
+  }
+}

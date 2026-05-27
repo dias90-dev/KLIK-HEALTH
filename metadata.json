@@ -1,0 +1,6 @@
+{
+  "name": "KlikHealth",
+  "description": "Plataforma avançada de suporte à decisão clínica com triagem inteligente, painel de indicadores, KlikHealth IA, clínica virtual integrada e banco de dados Firestore.",
+  "requestFramePermissions": ["microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,87 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Global safety net catches all nondefined access (Pillar 1/8)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper Primitives & Security Guards
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // 1. Validation Blueprint for User Profiles
+    function isValidUserProfile(data) {
+      return data.keys().hasAll(['userId', 'email', 'role']) 
+        && data.keys().size() <= 6
+        && data.userId == request.auth.uid 
+        && data.email is string && data.email.size() <= 150
+        && (data.role == "medico" || data.role == "paciente");
+    }
+
+    // 2. Validation Blueprint for Consultations
+    function isValidConsultation(data) {
+      return data.keys().hasAll(['id', 'patientName', 'selectedDoctorId', 'status'])
+        && data.keys().size() <= 14
+        && data.id is string && data.id.size() <= 128
+        && data.patientName is string && data.patientName.size() <= 200
+        && data.selectedDoctorId is string && data.selectedDoctorId.size() <= 128
+        && (data.status == 'pending' || data.status == 'confirmed' || data.status == 'completed' || data.status == 'cancelled' || data.status == 'active');
+    }
+
+    // 3. Validation Blueprint for Patient Clinical History
+    function isValidPatientHistory(data) {
+      return data.keys().hasAll(['id', 'name', 'currentVitals', 'triageCategory', 'status'])
+        && data.keys().size() <= 18
+        && data.id is string && data.id.size() <= 128
+        && data.name is string && data.name.size() <= 200
+        && data.currentVitals is map
+        && data.triageCategory is string && data.triageCategory.size() <= 50
+        && data.status is string && data.status.size() <= 50;
+    }
+
+    // Users collection match block
+    match /users/{userId} {
+      allow get: if isSignedIn() && isOwner(userId) && isValidId(userId);
+      allow create, update: if isSignedIn() && isOwner(userId) && isValidId(userId) && isValidUserProfile(incoming());
+      allow list, delete: if false; // Absolute protection against full profile scraping
+    }
+
+    // Consultations collection match block
+    match /consultations/{consultationId} {
+      allow get: if isSignedIn() && isValidId(consultationId);
+      // Secure listing pattern: make sure they are authenticated
+      allow list: if isSignedIn();
+      allow create: if isSignedIn() && isValidId(consultationId) && isValidConsultation(incoming());
+      allow update: if isSignedIn() && isValidId(consultationId) && isValidConsultation(incoming());
+      allow delete: if false; // Records are retained for clinical audit compliance
+    }
+
+    // Patient History collection match block
+    match /patient_history/{patientId} {
+      allow get: if isSignedIn() && isValidId(patientId);
+      allow list: if isSignedIn();
+      allow create: if isSignedIn() && isValidId(patientId) && isValidPatientHistory(incoming());
+      allow update: if isSignedIn() && isValidId(patientId) && isValidPatientHistory(incoming());
+      allow delete: if false; // Critical medical logs cannot be deleted for patient safety
+    }
+  }
+}
