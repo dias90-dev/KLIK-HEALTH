@@ -85,7 +85,7 @@ export default function VirtualClinic({
     }
 
     try {
-      const recognition = new SpeechRecognitionClass();
+      const recognition = customWindow.SpeechRecognition ? new customWindow.SpeechRecognition() : new customWindow.webkitSpeechRecognition();
       recognition.lang = "pt-BR";
       recognition.interimResults = false;
       recognition.maxAlternatives = 1;

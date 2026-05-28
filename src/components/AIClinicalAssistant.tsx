@@ -17,7 +17,11 @@ import {
   Thermometer,
   Heart,
   Droplets,
-  BookOpen
+  BookOpen,
+  History,
+  ChevronDown,
+  ChevronUp,
+  Trash2
 } from "lucide-react";
 
 interface AIClinicalAssistantProps {
@@ -39,8 +43,20 @@ export default function AIClinicalAssistant({
   onIncrementAiQuery,
   onNavigateToPlans
 }: AIClinicalAssistantProps) {
-  const [activeTask, setActiveTask] = useState<"triage" | "diagnosis" | "evidence" | "admin_summary">("triage");
+  const [activeTask, setActiveTask] = useState<"triage" | "diagnosis" | "evidence" | "admin_summary" | "prescription">("triage");
   const [loading, setLoading] = useState(false);
+
+  // Session History state for previously generated suggestions
+  const [suggestionsHistory, setSuggestionsHistory] = useState<{
+    id: string;
+    patientId: string;
+    task: "triage" | "diagnosis" | "evidence" | "admin_summary" | "prescription";
+    timestamp: string;
+    data: any;
+    customQuery?: string;
+  }[]>([]);
+  const [isHistoryExpanded, setIsHistoryExpanded] = useState(false);
+  const [expandedHistoryId, setExpandedHistoryId] = useState<string | null>(null);
   
   // Real-time vital form states for live decision testing ("dados em tempo real")
   const [temp, setTemp] = useState(patient.currentVitals.temperature);
@@ -59,6 +75,7 @@ export default function AIClinicalAssistant({
   const [diagnosisResponse, setDiagnosisResponse] = useState<any>(null);
   const [evidenceResponse, setEvidenceResponse] = useState<any>(null);
   const [adminResponse, setAdminResponse] = useState<any>(null);
+  const [prescriptionResponse, setPrescriptionResponse] = useState<any>(null);
 
   // Re-sync local form states when active patient switches
   useEffect(() => {
@@ -74,6 +91,7 @@ export default function AIClinicalAssistant({
     setDiagnosisResponse(null);
     setEvidenceResponse(null);
     setAdminResponse(null);
+    setPrescriptionResponse(null);
     setErrorStatus(null);
   }, [patient]);
 
@@ -135,6 +153,20 @@ export default function AIClinicalAssistant({
 
       const resData = await response.json();
       onIncrementAiQuery();
+
+      if (resData && resData.data) {
+        setSuggestionsHistory((prev) => [
+          {
+            id: `SUG-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+            patientId: patient.id,
+            task: activeTask,
+            timestamp: new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }),
+            data: resData.data,
+            customQuery: activeTask === "evidence" ? customEvidenceQuery : undefined
+          },
+          ...prev
+        ]);
+      }
       
       switch (activeTask) {
         case "triage":
@@ -148,6 +180,9 @@ export default function AIClinicalAssistant({
           break;
         case "admin_summary":
           setAdminResponse(resData.data);
+          break;
+        case "prescription":
+          setPrescriptionResponse(resData.data);
           break;
       }
     } catch (e: any) {
@@ -172,6 +207,41 @@ export default function AIClinicalAssistant({
       case "green": return "bg-green-500 text-white";
       case "blue": return "bg-blue-500 text-white";
       default: return "bg-gray-200 text-gray-700";
+    }
+  };
+
+  const getTaskLabel = (task: string) => {
+    switch (task) {
+      case "triage": return "Triagem de Gravidade";
+      case "diagnosis": return "Hipóteses Diagnósticas";
+      case "evidence": return "Evidências e Conduta";
+      case "admin_summary": return "Redução Administrativa";
+      case "prescription": return "Receita Digital";
+      default: return task;
+    }
+  };
+
+  const handleRestoreSuggestion = (sug: any) => {
+    setActiveTask(sug.task);
+    switch (sug.task) {
+      case "triage":
+        setTriageResponse(sug.data);
+        break;
+      case "diagnosis":
+        setDiagnosisResponse(sug.data);
+        break;
+      case "evidence":
+        setEvidenceResponse(sug.data);
+        if (sug.customQuery) {
+          setCustomEvidenceQuery(sug.customQuery);
+        }
+        break;
+      case "admin_summary":
+        setAdminResponse(sug.data);
+        break;
+      case "prescription":
+        setPrescriptionResponse(sug.data);
+        break;
     }
   };
 
@@ -316,37 +386,50 @@ export default function AIClinicalAssistant({
       <div className="lg:col-span-8 bg-slate-900 rounded-2xl border border-slate-800 shadow-md flex flex-col min-h-[500px]">
         
         {/* Task Selection Header Tabs */}
-        <div className="grid grid-cols-4 border-b border-slate-800 shrink-0 bg-slate-950/40 rounded-t-2xl overflow-hidden p-1 gap-1">
+        <div className="grid grid-cols-5 border-b border-slate-800 shrink-0 bg-slate-950/40 rounded-t-2xl overflow-hidden p-1 gap-1">
           <button
             onClick={() => setActiveTask("triage")}
-            className={`py-3 px-1 text-xs font-bold rounded-xl flex flex-col sm:flex-row items-center justify-center gap-1.5 cursor-pointer outline-none transition-all ${activeTask === "triage" ? "bg-slate-800 text-teal-400 border border-teal-500/20 shadow-md" : "text-slate-450 hover:text-white"}`}
+            className={`py-3 px-1 text-[11px] font-bold rounded-xl flex flex-col sm:flex-row items-center justify-center gap-1.5 cursor-pointer outline-none transition-all ${activeTask === "triage" ? "bg-slate-800 text-teal-400 border border-teal-500/20 shadow-md" : "text-slate-450 hover:text-white"}`}
           >
             <Activity size={14} />
-            <span className="text-center sm:text-left font-extrabold">1. Triagem Ágil</span>
+            <span className="text-center sm:text-left font-extrabold hidden lg:inline">1. Triagem Ágil</span>
+            <span className="text-center sm:text-left font-extrabold lg:hidden">1. Triagem</span>
           </button>
           
           <button
             onClick={() => setActiveTask("diagnosis")}
-            className={`py-3 px-1 text-xs font-bold rounded-xl flex flex-col sm:flex-row items-center justify-center gap-1.5 cursor-pointer outline-none transition-all ${activeTask === "diagnosis" ? "bg-slate-800 text-teal-400 border border-teal-500/20 shadow-md" : "text-slate-450 hover:text-white"}`}
+            className={`py-3 px-1 text-[11px] font-bold rounded-xl flex flex-col sm:flex-row items-center justify-center gap-1.5 cursor-pointer outline-none transition-all ${activeTask === "diagnosis" ? "bg-slate-800 text-teal-400 border border-teal-500/20 shadow-md" : "text-slate-450 hover:text-white"}`}
           >
             <Brain size={14} />
-            <span className="text-center sm:text-left font-extrabold">2. Diagnóstico</span>
+            <span className="text-center sm:text-left font-extrabold hidden lg:inline">2. Diagnóstico</span>
+            <span className="text-center sm:text-left font-extrabold lg:hidden">2. Diag</span>
           </button>
           
           <button
             onClick={() => setActiveTask("evidence")}
-            className={`py-3 px-1 text-xs font-bold rounded-xl flex flex-col sm:flex-row items-center justify-center gap-1.5 cursor-pointer outline-none transition-all ${activeTask === "evidence" ? "bg-slate-800 text-teal-400 border border-teal-500/20 shadow-md" : "text-slate-450 hover:text-white"}`}
+            className={`py-3 px-1 text-[11px] font-bold rounded-xl flex flex-col sm:flex-row items-center justify-center gap-1.5 cursor-pointer outline-none transition-all ${activeTask === "evidence" ? "bg-slate-800 text-teal-400 border border-teal-500/20 shadow-md" : "text-slate-450 hover:text-white"}`}
           >
             <BookOpen size={14} />
-            <span className="text-center sm:text-left font-extrabold">3. Evidências</span>
+            <span className="text-center sm:text-left font-extrabold hidden lg:inline">3. Evidências</span>
+            <span className="text-center sm:text-left font-extrabold lg:hidden">3. Busca</span>
           </button>
           
           <button
             onClick={() => setActiveTask("admin_summary")}
-            className={`py-3 px-1 text-xs font-bold rounded-xl flex flex-col sm:flex-row items-center justify-center gap-1.5 cursor-pointer outline-none transition-all ${activeTask === "admin_summary" ? "bg-slate-800 text-teal-400 border border-teal-500/20 shadow-md" : "text-slate-450 hover:text-white"}`}
+            className={`py-3 px-1 text-[11px] font-bold rounded-xl flex flex-col sm:flex-row items-center justify-center gap-1.5 cursor-pointer outline-none transition-all ${activeTask === "admin_summary" ? "bg-slate-800 text-teal-400 border border-teal-500/20 shadow-md" : "text-slate-450 hover:text-white"}`}
           >
             <FileText size={14} />
-            <span className="text-center sm:text-left font-extrabold">4. Desburocratizar</span>
+            <span className="text-center sm:text-left font-extrabold hidden lg:inline">4. Desburocratizar</span>
+            <span className="text-center sm:text-left font-extrabold lg:hidden">4. Doc</span>
+          </button>
+          
+          <button
+            onClick={() => setActiveTask("prescription")}
+            className={`py-3 px-1 text-[11px] font-bold rounded-xl flex flex-col sm:flex-row items-center justify-center gap-1.5 cursor-pointer outline-none transition-all ${activeTask === "prescription" ? "bg-slate-800 text-teal-400 border border-teal-500/20 shadow-md" : "text-slate-450 hover:text-white"}`}
+          >
+            <Copy size={14} />
+            <span className="text-center sm:text-left font-extrabold hidden lg:inline">5. Receita Digital</span>
+            <span className="text-center sm:text-left font-extrabold lg:hidden">5. Receita</span>
           </button>
         </div>
 
@@ -381,6 +464,11 @@ export default function AIClinicalAssistant({
             {activeTask === "admin_summary" && (
               <p className="text-slate-400">
                 Redutor de Carga Administrativa: Rascunho inteligente para prontuário eletrônico de evolução ou alta médica rápida. Copie em um clique.
+              </p>
+            )}
+            {activeTask === "prescription" && (
+              <p className="text-slate-400">
+                Geração de Receituário Clínico Seguro com integração para Assinatura Eletrônica Premium e validação.
               </p>
             )}
           </div>
@@ -665,9 +753,258 @@ export default function AIClinicalAssistant({
                   )}
                 </div>
               )}
+
+              {/* Task 5: Digital Prescription output */}
+              {activeTask === "prescription" && (
+                <div className="space-y-5">
+                   {!prescriptionResponse ? (
+                    <div className="text-center py-12 text-slate-500">
+                      <FileText className="mx-auto mb-3 opacity-40 text-teal-400 animate-pulse" size={40} />
+                      <p className="font-semibold text-sm text-slate-300">Receituário Digital Inteligente</p>
+                      <p className="text-xs mt-1 text-slate-550 font-medium">Gere prescrições virtuais precisas, prontas para emissão, baseadas no quadro clínico.</p>
+                    </div>
+                  ) : (
+                    <div className="bg-slate-100 rounded-xl shadow-lg border-2 border-slate-300 overflow-hidden relative" id="prescription-paper">
+                      
+                      {/* Watermark for Free plan */}
+                      {currentPlan === "gratis" && (
+                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-[0.06] select-none z-0">
+                           <div className="rotate-[-25deg] text-5xl md:text-6xl font-black text-rose-700 whitespace-nowrap">RASCUNHO - BLOQUEADO</div>
+                        </div>
+                      )}
+
+                      <div className="p-8 relative z-10">
+                        {/* Header */}
+                        <div className="border-b-2 border-slate-300 pb-4 mb-6 relative">
+                          <div className="flex justify-between items-start">
+                             <div>
+                               <h2 className="text-2xl font-black text-slate-800 tracking-tight">{prescriptionResponse.documento_titulo || "RECEITUÁRIO MÉDICO"}</h2>
+                               <p className="text-sm text-slate-500 uppercase mt-2 font-bold tracking-wider">PACIENTE: <strong className="text-slate-800">{patient.name}</strong></p>
+                             </div>
+                          </div>
+                        </div>
+
+                        {/* Medications */}
+                        <div className="space-y-6 min-h-[150px]">
+                          <div>
+                            <h4 className="text-xs font-black text-slate-400 uppercase mb-3">Prescrição</h4>
+                            <ul className="space-y-4">
+                               {prescriptionResponse.medicamentos?.map((med: any, i: number) => (
+                                 <li key={i} className="text-sm border-l-2 border-teal-500 pl-4 py-1">
+                                   <strong className="block text-slate-900 text-base">{med.nome}</strong>
+                                   <span className="text-slate-600 block mt-1"><strong className="text-slate-500 uppercase text-[10px] mr-1">Uso:</strong> {med.posologia}</span>
+                                 </li>
+                               ))}
+                            </ul>
+                          </div>
+                          {prescriptionResponse.orientacoes && (
+                            <div className="pt-4">
+                              <h4 className="text-xs font-black text-slate-400 uppercase mb-2">Orientações Gerais</h4>
+                              <p className="text-sm text-slate-700 leading-relaxed font-medium whitespace-pre-wrap">{prescriptionResponse.orientacoes}</p>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Footer & Signature */}
+                        <div className="pt-8 mt-8 border-t border-slate-300 text-center relative flex justify-center">
+                          {currentPlan === "premium" ? (
+                             <div className="inline-block p-5 border-2 border-teal-200/60 bg-teal-50 rounded-xl text-teal-900 min-w-[280px]">
+                               {/* Fancy Signature simulation */}
+                               <div className="font-extrabold text-3xl opacity-80 mb-2 font-mono tracking-tight text-teal-700 select-none" style={{fontFamily: "'Courier New', Courier, monospace", transform: "rotate(-2deg)"}}>
+                                 {prescriptionResponse.medico_nome}
+                               </div>
+                               <p className="text-sm font-black text-teal-950 uppercase">{prescriptionResponse.medico_nome}</p>
+                               <p className="text-xs uppercase font-bold text-teal-700 mt-0.5">{prescriptionResponse.medico_crm}</p>
+                               <div className="mt-3 bg-white px-3 py-1.5 border border-teal-200 rounded text-center inline-block">
+                                 <p className="text-[9px] font-mono text-teal-600 font-bold uppercase tracking-widest">Assinado Digitalmente</p>
+                                 <p className="text-[10px] font-mono text-teal-800 font-bold mt-0.5">{prescriptionResponse.assinatura_digital}</p>
+                               </div>
+                             </div>
+                          ) : (
+                             <div className="inline-block p-5 border-2 border-rose-200 bg-rose-50 rounded-xl text-rose-800 min-w-[280px] shadow-sm">
+                               <div className="font-extrabold flex items-center justify-center gap-1.5 mb-1.5 text-base text-rose-700"><Lock size={16}/> ASSINATURA BLOQUEADA</div>
+                               <p className="text-[11px] font-medium text-rose-700 mt-1 max-w-[200px] mx-auto leading-tight">Faça upgrade ao plano Premium para assinar e emitir oficialmente receitas virtuais válidas.</p>
+                               <button 
+                                 onClick={onNavigateToPlans} 
+                                 className="mt-4 uppercase font-black text-[10px] bg-rose-600 hover:bg-rose-700 text-white px-4 py-2 rounded-lg cursor-pointer transition-colors w-full shadow-md shadow-rose-500/20"
+                               >
+                                 Ativar Premium Agora
+                               </button>
+                             </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </>
           )}
 
+        </div>
+
+        {/* Retractable Accordion Section for Session Suggestions History */}
+        <div className="border-t border-slate-800 bg-slate-950/20">
+          <button
+            type="button"
+            onClick={() => setIsHistoryExpanded(!isHistoryExpanded)}
+            className="w-full flex items-center justify-between p-4 bg-slate-900/60 hover:bg-slate-850/80 transition-colors text-slate-200 outline-none select-none border-b border-slate-800"
+          >
+            <div className="flex items-center gap-2">
+              <History size={15} className="text-teal-400 animate-pulse" />
+              <span className="text-xs font-black uppercase tracking-wider text-slate-100 mr-1">
+                Histórico de Sugestões de IA
+              </span>
+              {/* Session Suggestions Badge */}
+              <span className="inline-flex items-center justify-center bg-teal-400 text-slate-950 font-extrabold text-[10px] px-2 py-0.5 rounded-full min-w-[20px] shadow-sm animate-bounce" style={{ animationDuration: '3s' }} title="Total de sugestões guardadas nesta sessão">
+                {suggestionsHistory.length}
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              {suggestionsHistory.filter(s => s.patientId === patient.id).length > 0 && (
+                <span className="text-[10px] bg-slate-800 border border-slate-700 text-teal-300 font-bold px-2.5 py-0.5 rounded-lg flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-teal-400 animate-ping"></span>
+                  <span>{patient.name}: {suggestionsHistory.filter(s => s.patientId === patient.id).length}</span>
+                </span>
+              )}
+              {isHistoryExpanded ? <ChevronUp size={15} className="text-slate-400" /> : <ChevronDown size={15} className="text-slate-400" />}
+            </div>
+          </button>
+
+          {isHistoryExpanded && (
+            <div className="p-4 bg-slate-900/45 space-y-3 max-h-[300px] overflow-y-auto">
+              {suggestionsHistory.filter(s => s.patientId === patient.id).length === 0 ? (
+                <div className="text-center py-8 text-slate-500 text-xs font-semibold">
+                  Nenhuma sugestão ou prescrição clínica arquivada anteriormente nesta sessão para {patient.name}.
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {suggestionsHistory
+                    .filter(s => s.patientId === patient.id)
+                    .map((sug) => {
+                      const isItemExpanded = expandedHistoryId === sug.id;
+                      return (
+                        <div key={sug.id} className="border border-slate-800/80 rounded-xl overflow-hidden bg-slate-950/40">
+                          {/* List Item Header */}
+                          <div
+                            onClick={() => setExpandedHistoryId(isItemExpanded ? null : sug.id)}
+                            className="flex items-center justify-between p-3.5 bg-slate-950/60 hover:bg-slate-950/90 transition-colors cursor-pointer select-none"
+                          >
+                            <div className="flex items-center gap-2">
+                              {sug.task === "triage" && <Activity size={13} className="text-amber-400" />}
+                              {sug.task === "diagnosis" && <Brain size={13} className="text-teal-400" />}
+                              {sug.task === "evidence" && <BookOpen size={13} className="text-sky-400" />}
+                              {sug.task === "admin_summary" && <FileText size={13} className="text-purple-400" />}
+                              {sug.task === "prescription" && <Copy size={13} className="text-emerald-400" />}
+                              <span className="text-xs font-bold text-slate-200">
+                                {getTaskLabel(sug.task)}
+                              </span>
+                              {sug.customQuery && (
+                                <span className="text-[10px] text-slate-450 italic font-medium max-w-[150px] truncate">
+                                  "{sug.customQuery}"
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-3">
+                              <span className="text-[10px] text-slate-500 font-mono font-bold">
+                                {sug.timestamp}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleRestoreSuggestion(sug);
+                                }}
+                                className="text-[10.5px] font-black text-teal-400 hover:text-black hover:bg-teal-400 bg-teal-500/10 border border-teal-500/20 px-3 py-1 rounded-lg transition-all"
+                                title="Carregar conteúdo no painel principal"
+                              >
+                                Carregar
+                              </button>
+                              {isItemExpanded ? <ChevronUp size={14} className="text-slate-400" /> : <ChevronDown size={14} className="text-slate-400" />}
+                            </div>
+                          </div>
+
+                          {/* Item expanded content preview */}
+                          {isItemExpanded && (
+                            <div className="p-3.5 bg-slate-900 border-t border-slate-800/80 text-xs text-slate-350 space-y-3 leading-relaxed">
+                              {sug.task === "triage" && (
+                                <div className="space-y-2 bg-slate-950/50 p-3 rounded-lg border border-slate-800/60">
+                                  <div className="flex items-center gap-2 border-b border-slate-805 pb-1.5 mb-1 text-[11px]">
+                                    <strong className="text-slate-450 uppercase text-[9px] font-bold">Prioridade:</strong>
+                                    <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase ${getTriageColorBg(sug.data.cor)}`}>
+                                      {sug.data.prioridade}
+                                    </span>
+                                  </div>
+                                  <div>
+                                    <strong className="text-slate-400 text-[10px] uppercase font-bold block mb-0.5">Fundamentação:</strong>
+                                    <p className="font-semibold text-slate-300">{sug.data.justificativa}</p>
+                                  </div>
+                                </div>
+                              )}
+
+                              {sug.task === "diagnosis" && (
+                                <div className="space-y-2">
+                                  {sug.data.diagnosticos?.map((d: any, idx: number) => (
+                                    <div key={idx} className="bg-slate-950/50 p-3 rounded-lg border border-slate-800/60 space-y-1 text-[11px]">
+                                      <div className="flex justify-between items-center bg-slate-950 p-1 px-2 rounded">
+                                        <strong className="text-white font-extrabold">{idx + 1}. {d.doenca}</strong>
+                                        <span className="text-teal-400 font-black">{d.probabilidade}</span>
+                                      </div>
+                                      <p className="text-slate-300 pt-1 font-semibold">{d.evidencia}</p>
+                                      {d.conduta_inicial && (
+                                        <p className="text-[10px] text-slate-500 italic mt-1.5 border-t border-slate-850/80 pt-1">
+                                          Conduta inicial: <span className="text-slate-400">{d.conduta_inicial}</span>
+                                        </p>
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+
+                              {sug.task === "evidence" && (
+                                <div className="space-y-1.5 bg-slate-950/50 p-3 rounded-lg border border-slate-800/60">
+                                  {sug.customQuery && (
+                                    <p className="text-[10px] text-slate-500 uppercase font-black">
+                                      Pergunta: <span className="text-teal-400 font-bold">"{sug.customQuery}"</span>
+                                    </p>
+                                  )}
+                                  <div className="whitespace-pre-wrap font-semibold text-slate-300">
+                                    {sug.data.evidencia_cientifica}
+                                  </div>
+                                </div>
+                              )}
+
+                              {sug.task === "admin_summary" && (
+                                <div className="space-y-1 bg-slate-950/50 p-3 rounded-lg border border-slate-800/60">
+                                  <strong className="text-white block font-black border-b border-slate-850/50 pb-1 mb-1.5">{sug.data.documento_titulo}</strong>
+                                  <pre className="whitespace-pre-wrap font-mono text-[10px] text-slate-350 leading-relaxed bg-slate-950 p-2 rounded">
+                                    {sug.data.conteudo}
+                                  </pre>
+                                </div>
+                              )}
+
+                              {sug.task === "prescription" && (
+                                <div className="space-y-2 bg-slate-950/50 p-3 rounded-lg border border-slate-800/60 text-[11px]">
+                                  <strong className="text-white block font-black border-b border-slate-855 pb-1 mb-2">{sug.data.documento_titulo || "RECEITUÁRIO MÉDICO"}</strong>
+                                  <ul className="space-y-2.5">
+                                    {sug.data.medicamentos?.map((m: any, idx: number) => (
+                                      <li key={idx} className="border-l-2 border-teal-500 pl-2.5 py-0.5">
+                                        <strong className="text-white block">{m.nome}</strong>
+                                        <p className="text-[10px] text-slate-405 font-medium mt-0.5">{m.posologia}</p>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
       </div>

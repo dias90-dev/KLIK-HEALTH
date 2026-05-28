@@ -112,6 +112,18 @@ app.post("/api/clinical-decision", async (req, res) => {
           documento_titulo: "Evolução e Receita de Alta Recomendada pelo Assistente",
           conteudo: `EVOLUÇÃO CLÍNICA - PRONTUÁRIO ELETRÔNICO DO PACIENTE\n=======================================================\nDATA: ${new Date().toLocaleDateString('pt-BR')} | HORA: ${new Date().toLocaleTimeString('pt-BR')}\nIDENTIFICAÇÃO: Paciente estável, admitido com cefaleia intensa.\nEXAME FÍSICO: Bom estado geral, corado, hidratado. Pupilas isocóricas e fotorreagentes. Sem sinais meningeos. Sinais vitais estabilizados pós-medicação.\nCONDUTA: Alta médica após melhora completa dos sintomas com analgesia institutiva.\n\nRECEITUÁRIO MÉDICO RECOMENDADO\n-----------------------------\n1. Dipirona Monoidratada 1g -------------- Tomar 1 comprimido VO de 6 em 6 horas se dor.\n2. Maxalt (Rizatriptana) 10mg ----------- Tomar 1 comprimido VO se sintomas de aura ou início de dor forte. (Máximo de 2 comprimidos em 24h)\n3. Plasil (Metoclopramida) 10mg --------- Tomar 1 comprimido VO de 8 em 8 horas se náusea.\n\nORIENTAÇÕES DE ALTA:\n- Repouso em local silencioso e escuro durante as crises.\n- Procurar imediatamente o pronto-socorro se houver cefaleia de início explosivo súbito ("dor tipo trovão"), febre, rigidez de nuca ou perda de força de um lado do corpo.`
         };
+      case "prescription":
+        return {
+          documento_titulo: "RECEITUÁRIO MÉDICO DIGITAL",
+          medicamentos: [
+             { nome: "Dipirona Monoidratada 1g", posologia: "Tomar 1 comprimido VO de 6 em 6 horas se dor intensa" },
+             { nome: "Maxalt (Rizatriptana) 10mg", posologia: "Tomar 1 comprimido VO se sintomas de aura" }
+          ],
+          orientacoes: "Repouso em local silencioso e escuro durante as crises.",
+          medico_nome: "Dr. Assistente KlikHealth",
+          medico_crm: "CRM 00000-SP",
+          assinatura_digital: "SIMULAÇÃO-E4F8-D9B1"
+        };
       default:
         return { mensagem: "Ação não identificada no simulador." };
     }
@@ -291,6 +303,58 @@ Retorne apenas o JSON.`;
               conteudo: { type: Type.STRING }
             },
             required: ["documento_titulo", "conteudo"]
+          }
+        }
+      });
+
+      const parsed = JSON.parse(response.text || "{}");
+      return res.json({ source: "gemini_api", data: parsed });
+    } else if (task === "prescription") {
+      const prompt = `Você é um médico especialista prescrevendo medicamentos para o paciente assistido.
+Crie um receituário médico apropriado e seguro baseado no diagnóstico provável avaliado a partir dos sintomas listados abaixo.
+
+Dados do Paciente:
+${patientStr}
+
+Formate a prescrição rigorosamente em JSON:
+{
+  "documento_titulo": "RECEITUÁRIO MÉDICO DIGITAL",
+  "medicamentos": [
+    { "nome": "Nome do medicamento e quantidade", "posologia": "Como usar detalhadamente (VO, IV, horários) e dias" }
+  ],
+  "orientacoes": "Orientações gerais não medicamentosas (repouso, alimentação, sinais de alarme)",
+  "medico_nome": "Dr(a). Assistente KlikHealth",
+  "medico_crm": "CRM 99999-BR",
+  "assinatura_digital": "9aC3-F7bB-42D1-A0E8-5x9F"
+}
+Retorne apenas JSON válido.`;
+
+      const response = await ai.models.generateContent({
+        model: "gemini-3.5-flash",
+        contents: prompt,
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              documento_titulo: { type: Type.STRING },
+              medicamentos: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    nome: { type: Type.STRING },
+                    posologia: { type: Type.STRING }
+                  },
+                  required: ["nome", "posologia"]
+                }
+              },
+              orientacoes: { type: Type.STRING },
+              medico_nome: { type: Type.STRING },
+              medico_crm: { type: Type.STRING },
+              assinatura_digital: { type: Type.STRING }
+            },
+            required: ["documento_titulo", "medicamentos", "orientacoes", "medico_nome", "medico_crm", "assinatura_digital"]
           }
         }
       });

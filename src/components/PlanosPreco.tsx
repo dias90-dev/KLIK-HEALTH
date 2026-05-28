@@ -24,9 +24,9 @@ export default function PlanosPreco({ currentPlan, onSelectPlan, aiQueryCount }:
   
   const playUpgradeSound = () => {
     try {
-      const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
-      if (!AudioContext) return;
-      const ctx = new AudioContext();
+      const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioContextClass) return;
+      const ctx = window.AudioContext ? new window.AudioContext() : new (window as any).webkitAudioContext();
       const now = ctx.currentTime;
       
       const osc = ctx.createOscillator();

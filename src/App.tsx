@@ -15,7 +15,8 @@ import {
   setDoc, 
   onSnapshot, 
   getDocs, 
-  updateDoc 
+  updateDoc,
+  getDoc
 } from "firebase/firestore";
 
 // Sub-component workspaces
@@ -61,6 +62,42 @@ export default function App() {
 
   // Portal Navigation State
   const [currentUserRole, setCurrentUserRole] = useState<"medico" | "paciente">("medico");
+
+  // Accessibility Font Size state ("aumenta o tamanho de letras")
+  const [fontSize, setFontSize] = useState<"small" | "normal" | "large" | "xlarge">(() => {
+    return (localStorage.getItem("klikhealth_font_size") as "small" | "normal" | "large" | "xlarge") || "normal";
+  });
+
+  useEffect(() => {
+    // We target higher percentage scales to fulfill "aumenta o tamanho de letras" nicely!
+    const sizeMap = {
+      small: "110%",   // Slightly scaled
+      normal: "125%",  // Visibly larger by default
+      large: "140%",   // Big text
+      xlarge: "155%",  // High accessibility scale
+    };
+    document.documentElement.style.fontSize = sizeMap[fontSize];
+    localStorage.setItem("klikhealth_font_size", fontSize);
+  }, [fontSize]);
+
+  // Hook to robustly update role and sync to UserProfile document in Firestore
+  const handleSetCurrentUserRole = async (role: "medico" | "paciente") => {
+    setCurrentUserRole(role);
+    if (currentUser) {
+      try {
+        await setDoc(doc(db, "users", currentUser.uid), {
+          userId: currentUser.uid,
+          email: currentUser.email || "",
+          displayName: currentUser.displayName || currentUser.email?.split("@")[0] || "Usuário",
+          role: role,
+          createdAt: new Date().toISOString()
+        }, { merge: true });
+        console.log("Successfully updated UserProfile role in Firestore:", role);
+      } catch (err) {
+        console.warn("Could not save UserProfile record under users/ collection in Firestore:", err);
+      }
+    }
+  };
   
   // Medical Portal Sub-tab structure
   const [activeMedicalTab, setActiveMedicalTab] = useState<"painel_triagem" | "suporte_ia" | "auditoria_qualidade" | "planos_preco">("painel_triagem");
@@ -88,9 +125,9 @@ export default function App() {
 
   const playClinicalChime = () => {
     try {
-      const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
-      if (!AudioContext) return;
-      const ctx = new AudioContext();
+      const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioContextClass) return;
+      const ctx = window.AudioContext ? new window.AudioContext() : new (window as any).webkitAudioContext();
       const now = ctx.currentTime;
       
       // Tone 1: high frequency alert
@@ -167,10 +204,33 @@ export default function App() {
 
   // Auth observer on mount configuration
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
         setCurrentUser(user);
         setIsDemoUser(false);
+        // Load role from Firestore if available to sync with the user interface
+        try {
+          const userDoc = await getDoc(doc(db, "users", user.uid));
+          if (userDoc.exists()) {
+            const data = userDoc.data();
+            if (data && data.role) {
+              setCurrentUserRole(data.role);
+              console.log("UserProfile found with role:", data.role);
+            }
+          } else {
+            // Write initial profile to register in users/ collection
+            await setDoc(doc(db, "users", user.uid), {
+              userId: user.uid,
+              email: user.email || "",
+              displayName: user.displayName || user.email?.split("@")[0] || "Usuário",
+              role: "medico", // default role on first login
+              createdAt: new Date().toISOString()
+            }, { merge: true });
+            console.log("UserProfile initialized with role: medico");
+          }
+        } catch (err) {
+          console.warn("Could not sync user profile role on login:", err);
+        }
       }
       setAuthInitialized(true);
     });
@@ -398,7 +458,7 @@ export default function App() {
             setCurrentUser(null);
             setIsDemoUser(isDemo);
           }
-          setCurrentUserRole(role);
+          handleSetCurrentUserRole(role);
         }}
       />
     );
@@ -433,7 +493,7 @@ export default function App() {
             <div className="space-y-1.5 px-3">
               <button
                 onClick={() => {
-                  setCurrentUserRole("medico");
+                  handleSetCurrentUserRole("medico");
                   setActiveMedicalTab("painel_triagem");
                   setIsViewingHistoryView(false);
                 }}
@@ -452,7 +512,7 @@ export default function App() {
 
               <button
                 onClick={() => {
-                  setCurrentUserRole("medico");
+                  handleSetCurrentUserRole("medico");
                   setActiveMedicalTab("suporte_ia");
                   setIsViewingHistoryView(false);
                 }}
@@ -468,7 +528,7 @@ export default function App() {
 
               <button
                 onClick={() => {
-                  setCurrentUserRole("medico");
+                  handleSetCurrentUserRole("medico");
                   setActiveMedicalTab("auditoria_qualidade");
                   setIsViewingHistoryView(false);
                 }}
@@ -484,7 +544,7 @@ export default function App() {
 
               <button
                 onClick={() => {
-                  setCurrentUserRole("medico");
+                  handleSetCurrentUserRole("medico");
                   setActiveMedicalTab("planos_preco");
                   setIsViewingHistoryView(false);
                 }}
@@ -515,7 +575,7 @@ export default function App() {
             <div className="space-y-1.5 px-3">
               <button
                 onClick={() => {
-                  setCurrentUserRole("paciente");
+                  handleSetCurrentUserRole("paciente");
                 }}
                 className={`w-full px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-between cursor-pointer outline-none ${
                   currentUserRole === "paciente"
@@ -598,6 +658,38 @@ export default function App() {
               
               {/* Alert Indicator dropdown icon */}
               <div className="flex items-center gap-2">
+                {/* Seletor de Tamanho de Fonte para Acessibilidade */}
+                <div className="flex bg-slate-100 p-0.5 rounded-lg border border-slate-200 shrink-0 select-none" title="Acessibilidade: Tamanho do texto">
+                  <button
+                    type="button"
+                    onClick={() => setFontSize("small")}
+                    className={`px-1.5 py-0.5 text-[9px] font-black rounded transition-all cursor-pointer outline-none ${fontSize === 'small' ? 'bg-[#1c1a5e] text-white shadow-xs' : 'text-slate-500 hover:text-[#1c1a5e]'}`}
+                  >
+                    A-
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFontSize("normal")}
+                    className={`px-1.5 py-0.5 text-[9px] font-black rounded transition-all cursor-pointer outline-none ${fontSize === 'normal' ? 'bg-[#1c1a5e] text-white shadow-xs' : 'text-slate-500 hover:text-[#1c1a5e]'}`}
+                  >
+                    A
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFontSize("large")}
+                    className={`px-1.5 py-0.5 text-[9px] font-black rounded transition-all cursor-pointer outline-none ${fontSize === 'large' ? 'bg-[#1c1a5e] text-white shadow-xs' : 'text-slate-500 hover:text-[#1c1a5e]'}`}
+                  >
+                    A+
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFontSize("xlarge")}
+                    className={`px-1.5 py-0.5 text-[9px] font-black rounded transition-all cursor-pointer outline-none ${fontSize === 'xlarge' ? 'bg-[#1c1a5e] text-white shadow-xs' : 'text-slate-500 hover:text-[#1c1a5e]'}`}
+                  >
+                    A++
+                  </button>
+                </div>
+
                 <span className="relative cursor-pointer p-2 hover:bg-slate-50 rounded-full transition-all block">
                   <Bell size={18} className="text-slate-500 hover:text-slate-800 transition-colors" />
                   {alerts.filter(a => !a.resolved).length > 0 && (
@@ -610,13 +702,13 @@ export default function App() {
                 {/* Mobile roles selector to swap roles */}
                 <div className="md:hidden flex bg-slate-100 p-0.5 rounded-lg border border-slate-250/20 shrink-0">
                   <button 
-                    onClick={() => { setCurrentUserRole("medico"); setIsViewingHistoryView(false); }}
+                    onClick={() => { handleSetCurrentUserRole("medico"); setIsViewingHistoryView(false); }}
                     className={`px-2.5 py-1 text-[10px] font-bold rounded ${currentUserRole === 'medico' ? 'bg-[#1c1a5e] text-white shadow-xs' : 'text-slate-500'}`}
                   >
                     Médico
                   </button>
                   <button 
-                    onClick={() => setCurrentUserRole("paciente")}
+                    onClick={() => handleSetCurrentUserRole("paciente")}
                     className={`px-2.5 py-1 text-[10px] font-bold rounded ${currentUserRole === 'paciente' ? 'bg-[#1c1a5e] text-white shadow-xs' : 'text-slate-500'}`}
                   >
                     Paciente
@@ -844,7 +936,7 @@ export default function App() {
                 <button
                   type="button"
                   onClick={() => {
-                    setCurrentUserRole("medico");
+                    handleSetCurrentUserRole("medico");
                     setSelectedPatientId(toast.patientId);
                     setIsViewingHistoryView(true);
                     setActiveMedicalTab("painel_triagem");
