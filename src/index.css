@@ -27,6 +27,7 @@ body {
   width: max-content;
   animation: marquee 30s linear infinite;
   transition: animation-duration 0.8s cubic-bezier(0.25, 1, 0.5, 1);
+  will-change: transform;
 }
 
 .animate-marquee-scroll:hover {

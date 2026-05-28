@@ -20,17 +20,74 @@ interface Partner {
   category: string;
   icon: React.ComponentType<{ size?: number; className?: string }>;
   colorClass: string;
+  description: string;
 }
 
 const partnersList: Partner[] = [
-  { id: "p1", name: "Albert Einstein", category: "Hospital Israelita", icon: PlusSquare, colorClass: "text-blue-500" },
-  { id: "p2", name: "Grupo Fleury", category: "Medicina Diagnóstica", icon: Activity, colorClass: "text-emerald-500" },
-  { id: "p3", name: "Rede D'Or São Luiz", category: "Complexo Hospitalar", icon: Award, colorClass: "text-amber-500" },
-  { id: "p4", name: "BP - Beneficência Portuguesa", category: "Excelência Médica", icon: Heart, colorClass: "text-rose-500" },
-  { id: "p5", name: "Dasa Labs", category: "Análises Clínicas", icon: Layers, colorClass: "text-sky-500" },
-  { id: "p6", name: "Anvisa Oficial", category: "Regulação Sanitária", icon: ShieldCheck, colorClass: "text-teal-500" },
-  { id: "p7", name: "OPAS / OMS", category: "Saúde Global", icon: Globe, colorClass: "text-indigo-500" },
-  { id: "p8", name: "InCor USP", category: "Instituto do Coração", icon: Sparkles, colorClass: "text-red-500" },
+  { 
+    id: "p1", 
+    name: "Albert Einstein", 
+    category: "Hospital Israelita", 
+    icon: PlusSquare, 
+    colorClass: "text-blue-500",
+    description: "Referência em alta complexidade, transplantes, oncologia e cirurgia robótica pioneira."
+  },
+  { 
+    id: "p2", 
+    name: "Grupo Fleury", 
+    category: "Medicina Diagnóstica", 
+    icon: Activity, 
+    colorClass: "text-emerald-500",
+    description: "Liderança em medicina de precisão, análises genômicas avançadas e check-ups executivos detalhados."
+  },
+  { 
+    id: "p3", 
+    name: "Rede D'Or São Luiz", 
+    category: "Complexo Hospitalar", 
+    icon: Award, 
+    colorClass: "text-amber-500",
+    description: "Maior operadora de hospitais privados do país, com UTIs de ponta e centros cirúrgicos integrados."
+  },
+  { 
+    id: "p4", 
+    name: "BP - Beneficência Portuguesa", 
+    category: "Excelência Médica", 
+    icon: Heart, 
+    colorClass: "text-rose-500",
+    description: "Hub de saúde especializado em cirurgias cardíacas de alta complexidade e oncologia molecular."
+  },
+  { 
+    id: "p5", 
+    name: "Dasa Labs", 
+    category: "Análises Clínicas", 
+    icon: Layers, 
+    colorClass: "text-sky-500",
+    description: "Rede integrada de diagnóstico laboratorial, patologia analítica e diagnóstico por imagem de última geração."
+  },
+  { 
+    id: "p6", 
+    name: "Anvisa Oficial", 
+    category: "Regulação Sanitária", 
+    icon: ShieldCheck, 
+    colorClass: "text-teal-500",
+    description: "Agência Federal encarregada de garantir a segurança sanitária de medicamentos, vacinas e insumos médicos."
+  },
+  { 
+    id: "p7", 
+    name: "OPAS / OMS", 
+    category: "Saúde Global", 
+    icon: Globe, 
+    colorClass: "text-indigo-500",
+    description: "Organização Pan-Americana focada no monitoramento epidemiológico, saúde coletiva e cooperação humanitária."
+  },
+  { 
+    id: "p8", 
+    name: "InCor USP", 
+    category: "Instituto do Coração", 
+    icon: Sparkles, 
+    colorClass: "text-red-500",
+    description: "Centro acadêmico e hospitalar de referência internacional para tratamento e prevenção de cardiopatias complexas."
+  },
 ];
 
 interface PartnersMarqueeProps {
@@ -134,6 +191,7 @@ export default function PartnersMarquee({ theme = "dark" }: PartnersMarqueeProps
                           ? "bg-slate-900/60 border-slate-800/80 hover:bg-slate-900 hover:border-slate-700/80"
                           : "bg-white border-slate-200/60 hover:bg-slate-50 shadow-xs"
                       }`}
+                      title={`${partner.name} (${partner.category})\nEspecialidade: ${partner.description}`}
                     >
                       {/* Logo Icon Visual Representation */}
                       <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
