@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { auth } from "../firebase";
 import { GoogleAuthProvider, signInWithPopup, User } from "firebase/auth";
+import PartnersMarquee from "./PartnersMarquee";
 import { 
   Sparkles, 
   UserSquare2, 
@@ -181,6 +182,11 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
 
         </div>
       </main>
+
+      {/* PARTNERS SCROLLING MARQUEE */}
+      <div className="max-w-7xl w-full mx-auto pb-4 shrink-0">
+        <PartnersMarquee theme="dark" />
+      </div>
 
       {/* FOOTER */}
       <footer className="max-w-7xl w-full mx-auto py-4 text-center text-slate-600 text-[10px] font-mono shrink-0">

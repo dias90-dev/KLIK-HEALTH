@@ -27,6 +27,7 @@ import PatientHistory from "./components/PatientHistory";
 import VirtualClinic from "./components/VirtualClinic";
 import AdminReports from "./components/AdminReports";
 import PlanosPreco from "./components/PlanosPreco";
+import PartnersMarquee from "./components/PartnersMarquee";
 
 // Icons 
 import { 
@@ -868,6 +869,11 @@ export default function App() {
           </div>
 
         </main>
+
+        {/* TRUSTED HEALTH TECH PARTNERS MARQUEE TRACK */}
+        <div className="border-t border-slate-100 shrink-0 bg-slate-50">
+          <PartnersMarquee theme="light" />
+        </div>
 
         {/* WORKSPACE ACCESSIBLE BOTTOM FOOTER BAR */}
         <footer className="bg-white border-t border-slate-100 py-5 px-8 flex flex-col sm:flex-row justify-between items-center gap-4 text-xs font-semibold text-slate-400 shrink-0 select-none">

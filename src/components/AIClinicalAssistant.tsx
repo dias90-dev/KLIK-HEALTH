@@ -57,6 +57,8 @@ export default function AIClinicalAssistant({
   }[]>([]);
   const [isHistoryExpanded, setIsHistoryExpanded] = useState(false);
   const [expandedHistoryId, setExpandedHistoryId] = useState<string | null>(null);
+  const [historySearchTerm, setHistorySearchTerm] = useState("");
+  const [historyTaskFilter, setHistoryTaskFilter] = useState<string>("all");
   
   // Real-time vital form states for live decision testing ("dados em tempo real")
   const [temp, setTemp] = useState(patient.currentVitals.temperature);
@@ -872,137 +874,214 @@ export default function AIClinicalAssistant({
           </button>
 
           {isHistoryExpanded && (
-            <div className="p-4 bg-slate-900/45 space-y-3 max-h-[300px] overflow-y-auto">
-              {suggestionsHistory.filter(s => s.patientId === patient.id).length === 0 ? (
-                <div className="text-center py-8 text-slate-500 text-xs font-semibold">
-                  Nenhuma sugestão ou prescrição clínica arquivada anteriormente nesta sessão para {patient.name}.
+            <div className="p-4 bg-slate-900/45 space-y-3">
+              {/* FILTERS CONTAINER */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 border-b border-slate-800/60 pb-3 mb-1">
+                {/* Text search */}
+                <div className="relative">
+                  <Search size={13} className="absolute left-3 top-2.5 text-slate-500" />
+                  <input
+                    type="text"
+                    value={historySearchTerm}
+                    onChange={(e) => setHistorySearchTerm(e.target.value)}
+                    placeholder="Filtrar por termo ou conteúdo..."
+                    className="w-full pl-8 pr-8 py-1.5 bg-slate-950 border border-slate-800 rounded-lg text-xs font-semibold text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
+                  />
+                  {historySearchTerm && (
+                    <button
+                      type="button"
+                      onClick={() => setHistorySearchTerm("")}
+                      className="absolute right-2.5 top-2 text-slate-500 hover:text-slate-350 text-[10px] font-black cursor-pointer bg-transparent border-0"
+                    >
+                      Limpar
+                    </button>
+                  )}
                 </div>
-              ) : (
-                <div className="space-y-3">
-                  {suggestionsHistory
-                    .filter(s => s.patientId === patient.id)
-                    .map((sug) => {
-                      const isItemExpanded = expandedHistoryId === sug.id;
-                      return (
-                        <div key={sug.id} className="border border-slate-800/80 rounded-xl overflow-hidden bg-slate-950/40">
-                          {/* List Item Header */}
-                          <div
-                            onClick={() => setExpandedHistoryId(isItemExpanded ? null : sug.id)}
-                            className="flex items-center justify-between p-3.5 bg-slate-950/60 hover:bg-slate-950/90 transition-colors cursor-pointer select-none"
-                          >
-                            <div className="flex items-center gap-2">
-                              {sug.task === "triage" && <Activity size={13} className="text-amber-400" />}
-                              {sug.task === "diagnosis" && <Brain size={13} className="text-teal-400" />}
-                              {sug.task === "evidence" && <BookOpen size={13} className="text-sky-400" />}
-                              {sug.task === "admin_summary" && <FileText size={13} className="text-purple-400" />}
-                              {sug.task === "prescription" && <Copy size={13} className="text-emerald-400" />}
-                              <span className="text-xs font-bold text-slate-200">
-                                {getTaskLabel(sug.task)}
-                              </span>
-                              {sug.customQuery && (
-                                <span className="text-[10px] text-slate-450 italic font-medium max-w-[150px] truncate">
-                                  "{sug.customQuery}"
+
+                {/* Task category selector */}
+                <div>
+                  <select
+                    value={historyTaskFilter}
+                    onChange={(e) => setHistoryTaskFilter(e.target.value)}
+                    className="w-full px-3 py-1.5 bg-slate-950 border border-slate-800 rounded-lg text-xs font-bold text-slate-350 focus:outline-none focus:ring-1 focus:ring-teal-500 cursor-pointer"
+                  >
+                    <option value="all">⚡ Todos os tipos</option>
+                    <option value="triage">📋 Triagem de Gravidade</option>
+                    <option value="diagnosis">🧠 Hipóteses Diagnósticas</option>
+                    <option value="evidence">📚 Evidências e Conduta</option>
+                    <option value="admin_summary">📄 Redução Administrativa</option>
+                    <option value="prescription">💊 Receitas Digitais</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* LIST OF FILTERED SUGGESTIONS */}
+              <div className="max-h-[300px] overflow-y-auto space-y-3 pr-1">
+                {(() => {
+                  const patientSuggestions = suggestionsHistory.filter(s => s.patientId === patient.id);
+                  if (patientSuggestions.length === 0) {
+                    return (
+                      <div className="text-center py-8 text-slate-500 text-xs font-semibold">
+                        Nenhuma sugestão ou prescrição clínica arquivada anteriormente nesta sessão para {patient.name}.
+                      </div>
+                    );
+                  }
+
+                  const filteredSuggestions = patientSuggestions.filter(sug => {
+                    const matchesTask = historyTaskFilter === "all" || sug.task === historyTaskFilter;
+                    
+                    let matchesKeyword = true;
+                    if (historySearchTerm) {
+                      const t = historySearchTerm.toLowerCase();
+                      const taskLabelEng = sug.task.toLowerCase();
+                      const taskLabelPort = getTaskLabel(sug.task).toLowerCase();
+                      const customQueryMatch = sug.customQuery?.toLowerCase().includes(t);
+                      
+                      let contentMatch = false;
+                      try {
+                        contentMatch = JSON.stringify(sug.data).toLowerCase().includes(t);
+                      } catch (_) {}
+
+                      matchesKeyword = taskLabelEng.includes(t) || taskLabelPort.includes(t) || !!customQueryMatch || contentMatch;
+                    }
+
+                    return matchesTask && matchesKeyword;
+                  });
+
+                  if (filteredSuggestions.length === 0) {
+                    return (
+                      <div className="text-center py-8 text-slate-500 text-xs font-medium">
+                        Nenhum resultado encontrado para os filtros aplicados.
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div className="space-y-3">
+                      {filteredSuggestions.map((sug) => {
+                        const isItemExpanded = expandedHistoryId === sug.id;
+                        return (
+                          <div key={sug.id} className="border border-slate-800/80 rounded-xl overflow-hidden bg-slate-950/40">
+                            {/* List Item Header */}
+                            <div
+                              onClick={() => setExpandedHistoryId(isItemExpanded ? null : sug.id)}
+                              className="flex items-center justify-between p-3.5 bg-slate-950/60 hover:bg-slate-950/90 transition-colors cursor-pointer select-none"
+                            >
+                              <div className="flex items-center gap-2">
+                                {sug.task === "triage" && <Activity size={13} className="text-amber-400 font-bold" />}
+                                {sug.task === "diagnosis" && <Brain size={13} className="text-teal-400 font-bold" />}
+                                {sug.task === "evidence" && <BookOpen size={13} className="text-sky-400 font-bold" />}
+                                {sug.task === "admin_summary" && <FileText size={13} className="text-purple-400 font-bold" />}
+                                {sug.task === "prescription" && <Copy size={13} className="text-emerald-400 font-bold" />}
+                                <span className="text-xs font-bold text-slate-200">
+                                  {getTaskLabel(sug.task)}
                                 </span>
-                              )}
+                                {sug.customQuery && (
+                                  <span className="text-[10px] text-slate-400 italic font-medium max-w-[150px] truncate">
+                                    "{sug.customQuery}"
+                                  </span>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-3">
+                                <span className="text-[10px] text-slate-500 font-mono font-bold">
+                                  {sug.timestamp}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleRestoreSuggestion(sug);
+                                  }}
+                                  className="text-[10.5px] font-black text-teal-400 hover:text-black hover:bg-teal-400 bg-teal-500/10 border border-teal-500/20 px-3 py-1 rounded-lg transition-all cursor-pointer"
+                                  title="Carregar conteúdo no painel principal"
+                                >
+                                  Carregar
+                                </button>
+                                {isItemExpanded ? <ChevronUp size={14} className="text-slate-400" /> : <ChevronDown size={14} className="text-slate-400" />}
+                              </div>
                             </div>
-                            <div className="flex items-center gap-3">
-                              <span className="text-[10px] text-slate-500 font-mono font-bold">
-                                {sug.timestamp}
-                              </span>
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleRestoreSuggestion(sug);
-                                }}
-                                className="text-[10.5px] font-black text-teal-400 hover:text-black hover:bg-teal-400 bg-teal-500/10 border border-teal-500/20 px-3 py-1 rounded-lg transition-all"
-                                title="Carregar conteúdo no painel principal"
-                              >
-                                Carregar
-                              </button>
-                              {isItemExpanded ? <ChevronUp size={14} className="text-slate-400" /> : <ChevronDown size={14} className="text-slate-400" />}
-                            </div>
-                          </div>
 
-                          {/* Item expanded content preview */}
-                          {isItemExpanded && (
-                            <div className="p-3.5 bg-slate-900 border-t border-slate-800/80 text-xs text-slate-350 space-y-3 leading-relaxed">
-                              {sug.task === "triage" && (
-                                <div className="space-y-2 bg-slate-950/50 p-3 rounded-lg border border-slate-800/60">
-                                  <div className="flex items-center gap-2 border-b border-slate-805 pb-1.5 mb-1 text-[11px]">
-                                    <strong className="text-slate-450 uppercase text-[9px] font-bold">Prioridade:</strong>
-                                    <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase ${getTriageColorBg(sug.data.cor)}`}>
-                                      {sug.data.prioridade}
-                                    </span>
-                                  </div>
-                                  <div>
-                                    <strong className="text-slate-400 text-[10px] uppercase font-bold block mb-0.5">Fundamentação:</strong>
-                                    <p className="font-semibold text-slate-300">{sug.data.justificativa}</p>
-                                  </div>
-                                </div>
-                              )}
-
-                              {sug.task === "diagnosis" && (
-                                <div className="space-y-2">
-                                  {sug.data.diagnosticos?.map((d: any, idx: number) => (
-                                    <div key={idx} className="bg-slate-950/50 p-3 rounded-lg border border-slate-800/60 space-y-1 text-[11px]">
-                                      <div className="flex justify-between items-center bg-slate-950 p-1 px-2 rounded">
-                                        <strong className="text-white font-extrabold">{idx + 1}. {d.doenca}</strong>
-                                        <span className="text-teal-400 font-black">{d.probabilidade}</span>
-                                      </div>
-                                      <p className="text-slate-300 pt-1 font-semibold">{d.evidencia}</p>
-                                      {d.conduta_inicial && (
-                                        <p className="text-[10px] text-slate-500 italic mt-1.5 border-t border-slate-850/80 pt-1">
-                                          Conduta inicial: <span className="text-slate-400">{d.conduta_inicial}</span>
-                                        </p>
-                                      )}
+                            {/* Item expanded content preview */}
+                            {isItemExpanded && (
+                              <div className="p-3.5 bg-slate-900 border-t border-slate-800/80 text-xs text-slate-350 space-y-3 leading-relaxed">
+                                {sug.task === "triage" && (
+                                  <div className="space-y-2 bg-slate-950/50 p-3 rounded-lg border border-slate-800/60">
+                                    <div className="flex items-center gap-2 border-b border-slate-805 pb-1.5 mb-1 text-[11px]">
+                                      <strong className="text-slate-450 uppercase text-[9px] font-bold">Prioridade:</strong>
+                                      <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase ${getTriageColorBg(sug.data.cor)}`}>
+                                        {sug.data.prioridade}
+                                      </span>
                                     </div>
-                                  ))}
-                                </div>
-                              )}
-
-                              {sug.task === "evidence" && (
-                                <div className="space-y-1.5 bg-slate-950/50 p-3 rounded-lg border border-slate-800/60">
-                                  {sug.customQuery && (
-                                    <p className="text-[10px] text-slate-500 uppercase font-black">
-                                      Pergunta: <span className="text-teal-400 font-bold">"{sug.customQuery}"</span>
-                                    </p>
-                                  )}
-                                  <div className="whitespace-pre-wrap font-semibold text-slate-300">
-                                    {sug.data.evidencia_cientifica}
+                                    <div>
+                                      <strong className="text-slate-400 text-[10px] uppercase font-bold block mb-0.5">Fundamentação:</strong>
+                                      <p className="font-semibold text-slate-300">{sug.data.justificativa}</p>
+                                    </div>
                                   </div>
-                                </div>
-                              )}
+                                )}
 
-                              {sug.task === "admin_summary" && (
-                                <div className="space-y-1 bg-slate-950/50 p-3 rounded-lg border border-slate-800/60">
-                                  <strong className="text-white block font-black border-b border-slate-850/50 pb-1 mb-1.5">{sug.data.documento_titulo}</strong>
-                                  <pre className="whitespace-pre-wrap font-mono text-[10px] text-slate-350 leading-relaxed bg-slate-950 p-2 rounded">
-                                    {sug.data.conteudo}
-                                  </pre>
-                                </div>
-                              )}
-
-                              {sug.task === "prescription" && (
-                                <div className="space-y-2 bg-slate-950/50 p-3 rounded-lg border border-slate-800/60 text-[11px]">
-                                  <strong className="text-white block font-black border-b border-slate-855 pb-1 mb-2">{sug.data.documento_titulo || "RECEITUÁRIO MÉDICO"}</strong>
-                                  <ul className="space-y-2.5">
-                                    {sug.data.medicamentos?.map((m: any, idx: number) => (
-                                      <li key={idx} className="border-l-2 border-teal-500 pl-2.5 py-0.5">
-                                        <strong className="text-white block">{m.nome}</strong>
-                                        <p className="text-[10px] text-slate-405 font-medium mt-0.5">{m.posologia}</p>
-                                      </li>
+                                {sug.task === "diagnosis" && (
+                                  <div className="space-y-2">
+                                    {sug.data.diagnosticos?.map((d: any, idx: number) => (
+                                      <div key={idx} className="bg-slate-950/50 p-3 rounded-lg border border-slate-800/60 space-y-1 text-[11px]">
+                                        <div className="flex justify-between items-center bg-slate-950 p-1 px-2 rounded">
+                                          <strong className="text-white font-extrabold">{idx + 1}. {d.doenca}</strong>
+                                          <span className="text-teal-400 font-black">{d.probabilidade}</span>
+                                        </div>
+                                        <p className="text-slate-300 pt-1 font-semibold">{d.evidencia}</p>
+                                        {d.conduta_inicial && (
+                                          <p className="text-[10px] text-slate-500 italic mt-1.5 border-t border-slate-850/80 pt-1">
+                                            Conduta inicial: <span className="text-slate-400">{d.conduta_inicial}</span>
+                                          </p>
+                                        )}
+                                      </div>
                                     ))}
-                                  </ul>
-                                </div>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                </div>
-              )}
+                                  </div>
+                                )}
+
+                                {sug.task === "evidence" && (
+                                  <div className="space-y-1.5 bg-slate-950/50 p-3 rounded-lg border border-slate-800/60">
+                                    {sug.customQuery && (
+                                      <p className="text-[10px] text-slate-500 uppercase font-black">
+                                        Pergunta: <span className="text-teal-400 font-bold">"{sug.customQuery}"</span>
+                                      </p>
+                                    )}
+                                    <div className="whitespace-pre-wrap font-semibold text-slate-300">
+                                      {sug.data.evidencia_cientifica}
+                                    </div>
+                                  </div>
+                                )}
+
+                                {sug.task === "admin_summary" && (
+                                  <div className="space-y-1 bg-slate-950/50 p-3 rounded-lg border border-slate-800/60">
+                                    <strong className="text-white block font-black border-b border-slate-850/50 pb-1 mb-1.5">{sug.data.documento_titulo}</strong>
+                                    <pre className="whitespace-pre-wrap font-mono text-[10px] text-slate-350 leading-relaxed bg-slate-950 p-2 rounded">
+                                      {sug.data.conteudo}
+                                    </pre>
+                                  </div>
+                                )}
+
+                                {sug.task === "prescription" && (
+                                  <div className="space-y-2 bg-slate-950/50 p-3 rounded-lg border border-slate-800/60 text-[11px]">
+                                    <strong className="text-white block font-black border-b border-slate-855 pb-1 mb-2">{sug.data.documento_titulo || "RECEITUÁRIO MÉDICO"}</strong>
+                                    <ul className="space-y-2.5">
+                                      {sug.data.medicamentos?.map((m: any, idx: number) => (
+                                        <li key={idx} className="border-l-2 border-teal-500 pl-2.5 py-0.5">
+                                          <strong className="text-white block">{m.nome}</strong>
+                                          <p className="text-[10px] text-slate-405 font-medium mt-0.5">{m.posologia}</p>
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
+              </div>
             </div>
           )}
         </div>

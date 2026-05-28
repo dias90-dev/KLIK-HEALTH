@@ -16,3 +16,20 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
+
+@keyframes marquee {
+  0% { transform: translateX(0%); }
+  100% { transform: translateX(-50%); }
+}
+
+.animate-marquee-scroll {
+  display: flex;
+  width: max-content;
+  animation: marquee 30s linear infinite;
+  transition: animation-duration 0.8s cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+.animate-marquee-scroll:hover {
+  animation-duration: 85s; /* Smoothly slows down rather than stopping abruptly */
+}
+
