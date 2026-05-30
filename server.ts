@@ -6,7 +6,7 @@ import { GoogleGenAI, Type } from "@google/genai";
 dotenv.config();
 
 const app = express();
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
 
 const PORT = 3000;
 
@@ -443,6 +443,94 @@ Escreva apenas a próxima resposta do plantonista clínico IA, sem prefixos, de 
     return res.json({ 
       source: "simulation_mode",
       reply: "Peço desculpas pelo atraso tecnológico no processamento! Nossos médicos recomendam repouso e hidratação. Estamos confirmando sua prioridade com a recepção humana. Qual horário entre 14:00 e 16:30 hoje seria o melhor para você?" 
+    });
+  }
+});
+
+// 4. Pharmacist Mode - Prescription Scanner
+app.post("/api/verify-prescription", async (req, res) => {
+  const { imageBase64, mimeType } = req.body;
+  const ai = getAiClient();
+
+  if (!imageBase64) {
+    return res.status(400).json({ error: "Imagem de receituário obrigatória." });
+  }
+
+  const fallbackResponse = {
+    medicamentos: [
+      { nome: "Amoxicilina 500mg", posologia: "1 cap de 8/8h por 7 dias", disponivel: true },
+      { nome: "Ibuprofeno 400mg", posologia: "1 comp de 12/12h se dor", disponivel: false }
+    ],
+    valida: true,
+    observacao: "Receituário comum (branca). Verificação de duas vias não necessária. (Resultado Simulado)"
+  };
+
+  if (!ai) {
+    return res.json({ source: "simulation_mode", data: fallbackResponse });
+  }
+
+  try {
+    const prompt = `Você é um farmacêutico assistente altamente capacitado interpretando uma imagem de receita médica.
+Por favor, analise as informações na imagem do receituário em anexo. Identifique os medicamentos prescritos com suas respectivas posologias.
+
+Além da leitura, simule uma verificação de estoque marcando aleatoriamente \`disponivel: true\` ou \`disponivel: false\` para cada item.
+Avalie validade técnica da receita (data, CRM ou carimbo) e defina \`valida: true/false\` e uma \`observacao: ...\` respectiva (Ex: "Falta carimbo", "Prescrição correta de antibiótico").
+
+Sua resposta deve ser estritamente retornar um JSON no seguinte schema:
+{
+  "medicamentos": [
+    { "nome": "nome do medicamento detectado", "posologia": "posologia detectada", "disponivel": true ou false }
+  ],
+  "valida": true,
+  "observacao": "breves detalhes sobre a validade da receita"
+}
+Retorne apenas JSON limpo, sem markdown.`;
+
+    const response = await ai.models.generateContent({
+      model: "gemini-3.5-flash",
+      contents: [
+        {
+          inlineData: {
+            data: imageBase64,
+            mimeType: mimeType || "image/jpeg"
+          }
+        },
+        prompt
+      ],
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            medicamentos: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  nome: { type: Type.STRING },
+                  posologia: { type: Type.STRING },
+                  disponivel: { type: Type.BOOLEAN }
+                },
+                required: ["nome", "posologia", "disponivel"]
+              }
+            },
+            valida: { type: Type.BOOLEAN },
+            observacao: { type: Type.STRING }
+          },
+          required: ["medicamentos", "valida", "observacao"]
+        }
+      }
+    });
+
+    const parsed = JSON.parse(response.text || "{}");
+    return res.json({ source: "gemini_api", data: parsed });
+
+  } catch (error: any) {
+    console.error("Erro na leitura da receita:", error);
+    return res.status(500).json({
+      error: "Falha na análise biométrica com a IA.",
+      message: error.message,
+      data: fallbackResponse
     });
   }
 });

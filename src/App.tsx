@@ -28,6 +28,7 @@ import VirtualClinic from "./components/VirtualClinic";
 import AdminReports from "./components/AdminReports";
 import PlanosPreco from "./components/PlanosPreco";
 import PartnersMarquee from "./components/PartnersMarquee";
+import PharmacistMode from "./components/PharmacistMode";
 
 // Icons 
 import { 
@@ -62,7 +63,7 @@ export default function App() {
   const [authInitialized, setAuthInitialized] = useState(false);
 
   // Portal Navigation State
-  const [currentUserRole, setCurrentUserRole] = useState<"medico" | "paciente">("medico");
+  const [currentUserRole, setCurrentUserRole] = useState<"medico" | "paciente" | "farmaceutico">("medico");
 
   // Accessibility Font Size state ("aumenta o tamanho de letras")
   const [fontSize, setFontSize] = useState<"small" | "normal" | "large" | "xlarge">(() => {
@@ -82,7 +83,7 @@ export default function App() {
   }, [fontSize]);
 
   // Hook to robustly update role and sync to UserProfile document in Firestore
-  const handleSetCurrentUserRole = async (role: "medico" | "paciente") => {
+  const handleSetCurrentUserRole = async (role: "medico" | "paciente" | "farmaceutico") => {
     setCurrentUserRole(role);
     if (currentUser) {
       try {
@@ -571,9 +572,26 @@ export default function App() {
           {/* SAÚDE E PACIENTE CATEGORY */}
           <div>
             <span className="text-[10px] text-indigo-300/60 font-extrabold tracking-widest px-6 block uppercase mb-2.5">
-              Atendimento Saúde
+              Atendimento Aberto
             </span>
             <div className="space-y-1.5 px-3">
+              <button
+                onClick={() => {
+                  handleSetCurrentUserRole("farmaceutico");
+                }}
+                className={`w-full px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-between cursor-pointer outline-none ${
+                  currentUserRole === "farmaceutico"
+                    ? "bg-[#2f2b8f] text-white font-extrabold shadow-sm border-l-4 border-emerald-400"
+                    : "text-indigo-200/80 hover:text-white hover:bg-indigo-950/20"
+                }`}
+              >
+                <div className="flex items-center gap-2.5">
+                  <Heart size={16} className={currentUserRole === "farmaceutico" ? "text-emerald-400" : "text-indigo-300"} />
+                  <span>Modo Farmacêutico</span>
+                </div>
+                <span className="text-[9px] bg-emerald-500/30 text-emerald-100 font-extrabold px-1.5 py-0.5 rounded font-mono">IA</span>
+              </button>
+
               <button
                 onClick={() => {
                   handleSetCurrentUserRole("paciente");
@@ -707,6 +725,12 @@ export default function App() {
                     className={`px-2.5 py-1 text-[10px] font-bold rounded ${currentUserRole === 'medico' ? 'bg-[#1c1a5e] text-white shadow-xs' : 'text-slate-500'}`}
                   >
                     Médico
+                  </button>
+                  <button 
+                    onClick={() => handleSetCurrentUserRole("farmaceutico")}
+                    className={`px-2.5 py-1 text-[10px] font-bold rounded ${currentUserRole === 'farmaceutico' ? 'bg-[#1c1a5e] text-white shadow-xs' : 'text-slate-500'}`}
+                  >
+                    Farma
                   </button>
                   <button 
                     onClick={() => handleSetCurrentUserRole("paciente")}
@@ -856,6 +880,8 @@ export default function App() {
                   )}
                 </>
               )
+            ) : currentUserRole === "farmaceutico" ? (
+               <PharmacistMode hasAiKey={hasAiKey} />
             ) : (
               // PATIENT WORKSPACE DIRECT RENDERING
               <VirtualClinic
